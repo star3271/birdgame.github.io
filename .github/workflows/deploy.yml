@@ -1,0 +1,71 @@
+name: Deploy Vite Project to GitHub Pages
+
+# 控制何时触发工作流程
+on:
+  # 在针对 `main` 分支的推送上运行
+  push:
+    branches: [ main ]
+  # 允许你从 Actions 选项卡手动运行此工作流程
+  workflow_dispatch:
+
+# 设置 GITHUB_TOKEN 的权限，以允许部署到 GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 只允许一个并发部署，取消正在进行的、由相同提交触发的旧部署
+# 但是，不要取消正在进行的、由不同提交触发的工作流程运行
+concurrency:
+  group: "pages"
+  cancel-in-progress: false # 改为 false 避免取消不同提交的构建
+
+jobs:
+  # 构建任务
+  build:
+    runs-on: ubuntu-latest # 在最新的 Ubuntu Linux 虚拟机上运行
+    steps:
+      - name: Checkout repository # 第一步：签出（下载）你的仓库代码
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js # 第二步：设置 Node.js 环境
+        uses: actions/setup-node@v4
+        with:
+          # 这里使用 Node.js 18 版本，如果你的项目需要特定版本，可以修改
+          node-version: 18
+          # 缓存 npm 依赖，加快后续构建速度
+          cache: 'npm'
+
+      - name: Install dependencies # 第三步：安装项目依赖
+        # 运行 npm install 命令。如果你的项目是用 yarn 创建的，这里改成 `run: yarn install`
+        run: npm install
+
+      - name: Build project # 第四步：构建项目
+        # 运行 npm run build 命令。如果你的项目是用 yarn，这里改成 `run: yarn build`
+        # 这个命令会执行 vite build，生成 dist 目录
+        run: npm run build
+        # 注意：如果你的仓库是 `用户名.github.io` 这种，通常不需要设置 base。
+        # 如果是部署到 `用户名.github.io/仓库名/` 这种子目录，可能需要在 vite.config.ts 或 build 命令里设置 base。
+        # 但你的仓库名是 github.io，应该是部署到根域名，所以通常不需要特殊设置。
+
+      - name: Setup Pages # 第五步：配置 GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact # 第六步：上传构建产物 (dist 目录)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # 上传 './dist' 目录的内容。请确保你的构建命令确实是输出到 'dist' 目录。
+          # 这是 Vite 的默认设置。
+          path: './dist'
+
+  # 部署任务
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }} # 设置部署环境的 URL
+    runs-on: ubuntu-latest # 在最新的 Ubuntu Linux 虚拟机上运行
+    needs: build # 这个任务需要在 'build' 任务成功完成后才运行
+    steps:
+      - name: Deploy to GitHub Pages # 最后一步：部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4 # 使用官方的部署 Action
